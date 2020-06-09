@@ -99,8 +99,8 @@ void calculateGammaMatrix(Matrix& m){
 	zeroes(m,6,2);
 
 	m.at(0).at(0) = 1;   m.at(0).at(1) = 0;
-	m.at(1).at(0) = 1; m.at(1).at(1) = 0;
-	m.at(2).at(0) = 1; m.at(2).at(1) = 0;
+	m.at(1).at(0) = 1;   m.at(1).at(1) = 0;
+	m.at(2).at(0) = 1;   m.at(2).at(1) = 0;
 	m.at(3).at(0) = 0;   m.at(3).at(1) = 1;
 	m.at(4).at(0) = 0;   m.at(4).at(1) = 1;
 	m.at(5).at(0) = 0;   m.at(5).at(1) = 1;
@@ -125,16 +125,16 @@ float calculateLocalJ(int i,mesh m){
 
 Matrix createLocalK(int e,mesh &m){
     //Preparaci�n de ingredientes
-    float u_bar,nu,rho,Ae,J,D;
+    float t,kc,l,d,Ae,J,D;
     
     //Componentes de K
     // [ A+K  G ]
     // [  D   0 ]
-    Matrix matrixA,matrixK,matrixG,matrixD;
+    Matrix matrixA,matrixK,matrixG,matrixD,matrixL,matrixLng;
     Matrix K,g_matrix,g_matrix_t,Alpha,Beta,Alphat,Betat,BPrima,BPrimat;
 
     //Preparando matrixA (En clase conocida simplemente como A)
-    u_bar = m.getParameter(ADJECTIVE_VELOCITY);
+    t = m.getParameter(T);
     J = calculateLocalJ(e,m);
     D = calculateLocalD(e,m);
 
@@ -146,19 +146,24 @@ Matrix createLocalK(int e,mesh &m){
     calculateGammaMatrix(g_matrix);
     calculateLocalA(e,Alpha,m);
     calculateBetaMatrix(Beta);
-    productRealMatrix(u_bar*J/(6*D),productMatrixMatrix(g_matrix,productMatrixMatrix(Alpha,Beta,2,2,6),6,2,6),matrixA);
+    productRealMatrix(t*J/(24*D),productMatrixMatrix(g_matrix,productMatrixMatrix(Alpha,Beta,2,2,6),6,2,6),matrixA);
 
     //Preparando matrixK (En clase conocida simplemente como K)
-    nu = m.getParameter(DYNAMIC_VISCOSITY);
+    kc = m.getParameter(KC);
     Ae = calculateLocalArea(e,m);
     transpose(Alpha,Alphat);
     transpose(Beta,Betat);
-    productRealMatrix(nu*Ae/(D*D),productMatrixMatrix(Betat,productMatrixMatrix(Alphat,productMatrixMatrix(Alpha,Beta,2,2,6),2,2,6),6,2,6),matrixK);
+    productRealMatrix(kc*Ae/(9*D),productMatrixMatrix(Betat,productMatrixMatrix(Alphat,productMatrixMatrix(Alpha,Beta,2,2,6),2,2,6),6,2,6),matrixK);
 
     //Preparando matrixG (En clase conocida simplemente como G)
-    rho = m.getParameter(DENSITY);
+    l = m.getParameter(L);
     calculateBPrima(BPrima);
-    productRealMatrix(J/(6*rho*D),productMatrixMatrix(g_matrix,productMatrixMatrix(Alpha,BPrima,2,2,3),6,2,3),matrixG);
+    productRealMatrix((J*l)/(9*D),productMatrixMatrix(g_matrix,productMatrixMatrix(Alpha,BPrima,2,2,3),6,2,3),matrixG);
+
+    d = m.getParameter(D);
+    calculateBPrima(BPrima);
+    productRealMatrix((J*d)/(48*D),productMatrixMatrix(g_matrix,productMatrixMatrix(Alpha,BPrima,2,2,3),6,2,3),matrixL);
+    productRealMatrix(-1,matrixL,matrixLng);
 
     //Preparando matrixD (En clase conocida simplemente como D)
     transpose(BPrima,BPrimat);
@@ -178,18 +183,19 @@ Vector createLocalb(int e,mesh &m){
     Vector b0,b,f;
     Matrix g_matrix;
 
-    float f_x = m.getParameter(EXTERNAL_FORCE_X);
-    float f_y = m.getParameter(EXTERNAL_FORCE_Y);
+    float ex = m.getParameter(E);
+    float s = m.getParameter(S);
+    float n = m.getParameter(N);
     float J = calculateLocalJ(e,m);
     calculateGammaMatrix(g_matrix);
     zeroes(f,2);
-    f.at(0) = f_x;
-    f.at(1) = f_y;
+    f.at(0) = s;
+    f.at(1) = n;
 
     zeroes(b0,6);
     productMatrixVector(g_matrix,f,b0);
     productRealVector(J/6,b0,b);
-    b.push_back(0); b.push_back(0); b.push_back(0);
+    b.push_back((ex*J)/6); b.push_back((ex*J)/6); b.push_back((ex*J)/6);
 
     return b;
 }
@@ -303,7 +309,12 @@ void assemblyb(element e,Vector localb,Vector &b,int nnodes){
     int index1 = e.getNode1() - 1;
     int index2 = e.getNode2() - 1;
     int index3 = e.getNode3() - 1;
-    int index4 = index1+nnodes, index5 = index2+nnodes, index6 = index3+nnodes;
+    int index4 = index1 + nnodes;
+    int index5 = index2 + nnodes;
+    int index6 = index3 + nnodes;
+    int index7 = index4 + nnodes;
+    int index8 = index5 + nnodes;
+    int index9 = index6 + nnodes;
 
     b.at(index1) += localb.at(0);
     b.at(index2) += localb.at(1);
@@ -311,5 +322,8 @@ void assemblyb(element e,Vector localb,Vector &b,int nnodes){
     b.at(index4) += localb.at(3);
     b.at(index5) += localb.at(4);
     b.at(index6) += localb.at(5);
+    b.at(index7) += localb.at(6);
+    b.at(index8) += localb.at(7);
+    b.at(index9) += localb.at(8);
 }
 
